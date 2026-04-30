@@ -1,25 +1,10 @@
 # syntax=docker/dockerfile:1.7
 
-# ---------- Stage 1: build vendor con composer ----------
-FROM composer:2 AS vendor
-
-WORKDIR /app
-
-COPY composer.json composer.lock ./
-
-RUN composer install \
-    --no-dev \
-    --no-interaction \
-    --no-progress \
-    --no-scripts \
-    --prefer-dist \
-    --optimize-autoloader
-
-# ---------- Stage 2: imagen final PHP + Apache ----------
 FROM php:8.3-apache
 
 ENV APACHE_DOCUMENT_ROOT=/var/www/html \
     COMPOSER_ALLOW_SUPERUSER=1 \
+    COMPOSER_MEMORY_LIMIT=-1 \
     DEBUG=false
 
 # Dependencias del sistema y extensiones PHP
@@ -45,7 +30,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && a2enmod rewrite headers \
     && rm -rf /var/lib/apt/lists/*
 
-# Composer en la imagen final (para post-install y comandos manuales)
+# Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 # Configuración de Apache y PHP
@@ -54,16 +39,26 @@ COPY docker/php.ini /usr/local/etc/php/conf.d/zz-app.ini
 
 WORKDIR /var/www/html
 
-# Copiar código de la app
+# Instalar dependencias primero (capa cacheada si no cambian composer.json/lock)
+COPY composer.json composer.lock ./
+RUN composer install \
+    --no-dev \
+    --no-interaction \
+    --no-progress \
+    --no-scripts \
+    --no-autoloader \
+    --prefer-dist
+
+# Copiar el código de la app
 COPY --chown=www-data:www-data . /var/www/html
 
-# Copiar vendor preinstalado del stage anterior
-COPY --from=vendor --chown=www-data:www-data /app/vendor /var/www/html/vendor
+# Generar autoload optimizado con el código completo presente
+RUN composer dump-autoload --no-dev --optimize --classmap-authoritative
 
 # app_local.php basado en el example (lee DATABASE_URL/SECURITY_SALT de env)
 RUN cp config/app_local.example.php config/app_local.php \
     && mkdir -p logs tmp/cache/models tmp/cache/persistent tmp/cache/views tmp/sessions tmp/tests \
-    && chown -R www-data:www-data logs tmp \
+    && chown -R www-data:www-data logs tmp vendor \
     && chmod -R 775 logs tmp
 
 # Entrypoint: corre migraciones y arranca Apache
