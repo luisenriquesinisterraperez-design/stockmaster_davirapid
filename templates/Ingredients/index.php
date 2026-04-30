@@ -1,0 +1,53 @@
+<?php
+/**
+ * @var \App\View\AppView $this
+ * @var iterable<\App\Model\Entity\Ingredient> $ingredients
+ */
+?>
+<header class="mb-8 flex items-center justify-between">
+    <div>
+        <h1 class="text-3xl font-black text-slate-800 tracking-tight uppercase">Control de Inventario</h1>
+        <p class="text-blue-600 font-bold uppercase text-xs tracking-widest">Gestión de insumos y materia prima</p>
+    </div>
+    <?= $this->Html->link('<i class="fa-solid fa-plus mr-2"></i> Nuevo Insumo', ['action' => 'add'], ['escape' => false, 'class' => 'bg-blue-600 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20']) ?>
+</header>
+
+<div class="bg-white rounded-3xl border border-slate-100 overflow-hidden shadow-sm">
+    <table class="w-full text-left">
+        <thead class="bg-slate-900 text-white text-[10px] uppercase font-bold tracking-widest">
+            <tr>
+                <th class="p-5">Insumo</th>
+                <th class="p-5 text-center">Costo Unitario</th>
+                <th class="p-5 text-center">Stock Actual</th>
+                <th class="p-5 text-right">Acciones</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y text-sm">
+            <?php foreach ($ingredients as $ingredient): ?>
+            <tr class="hover:bg-slate-50 transition-colors">
+                <td class="p-5">
+                    <div class="font-black text-slate-800 uppercase text-sm"><?= h($ingredient->name) ?></div>
+                    <div class="text-[10px] text-slate-400 font-bold uppercase"><?= h($ingredient->unit) ?></div>
+                </td>
+                <td class="p-5 text-center font-bold text-blue-600">
+                    $<?= number_format($ingredient->cost, 2) ?>
+                </td>
+                <td class="p-5 text-center">
+                    <span class="px-4 py-2 rounded-xl font-black text-lg <?= $ingredient->stock <= 5 ? 'bg-red-50 text-red-600' : 'bg-slate-50 text-slate-700' ?>">
+                        <?= number_format($ingredient->stock, 1) ?>
+                    </span>
+                </td>
+                <td class="p-5 text-right">
+                    <div class="flex justify-end gap-2 mt-1">
+                        <?= $this->Html->link('<i class="fa-solid fa-pen"></i>', ['action' => 'edit', $ingredient->id], ['escape' => false, 'class' => 'p-2 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-all']) ?>
+                        
+                        <?= $this->Html->link('<i class="fa-solid fa-book"></i>', ['controller' => 'Products', 'action' => 'index'], ['escape' => false, 'class' => 'p-2 bg-slate-50 text-slate-400 rounded-xl hover:bg-slate-200 transition-all', 'title' => 'Ver/Gestionar Recetas']) ?>
+
+                        <?= $this->Form->postLink('<i class="fa-solid fa-trash"></i>', ['action' => 'delete', $ingredient->id], ['confirm' => __('¿Eliminar insumo?'), 'escape' => false, 'class' => 'p-2 text-red-200 hover:text-red-600']) ?>
+                    </div>
+                </td>
+            </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
+</div>
