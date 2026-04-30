@@ -7,7 +7,7 @@ class AddMissingTenancyToRelations extends BaseMigration
 {
     public function change(): void
     {
-        $tables = ['product_ingredients', 'tareas'];
+        $tables = ['product_ingredients'];
 
         foreach ($tables as $t) {
             $table = $this->table($t);

@@ -1,0 +1,41 @@
+.git
+.github
+.gitignore
+.gitattributes
+.editorconfig
+.dockerignore
+Dockerfile
+docker-compose*.yml
+
+# Documentación / dev
+README.md
+GEMINI.md
+CLAUDE.md
+phpcs.xml
+phpstan.neon
+phpunit.xml.dist
+psalm.xml
+
+# Tests
+tests
+testdb.sqlite
+
+# Vendor (se reinstala en build) y artefactos locales
+vendor
+node_modules
+composer.phar
+
+# Logs y temporales (se crean vacíos en la imagen)
+logs/*
+!logs/.gitkeep
+tmp/*
+!tmp/.gitkeep
+
+# Config local — config/.env SE INCLUYE en la imagen para que CakePHP lo cargue
+config/app_local.php
+
+# IDE / OS
+.idea
+.vscode
+.DS_Store
+Thumbs.db

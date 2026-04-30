@@ -10,7 +10,7 @@ class AssignOrphanRecordsToFirstCompany extends BaseMigration
         $tables = [
             'users', 'products', 'ingredients', 'delivery_drivers', 'clients',
             'orders', 'expenses', 'daily_closures', 'inventory_adjustments',
-            'accounts_receivable', 'account_payments', 'order_logs', 'product_ingredients', 'tareas'
+            'accounts_receivable', 'account_payments', 'order_logs', 'product_ingredients'
         ];
 
         // Obtener el ID de la primera empresa creada
