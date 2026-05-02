@@ -11,10 +11,10 @@ DAVI RAPI es una plataforma integral para **negocios de comida rápida** con ope
 - **Operación diaria**: registro y seguimiento de pedidos, asignación a repartidores, impresión de tickets.
 - **Inventario**: control de insumos por receta, descuento automático del stock al vender, ajustes manuales.
 - **Finanzas**: gastos del día, cuentas por cobrar (fiados), abonos parciales, cierre de caja diario con cuadre.
-- **Administración**: multi-empresa, sucursales, usuarios y roles.
+- **Administración**: usuarios y roles del negocio.
 - **Análisis**: dashboard con métricas en tiempo real y rangos de fecha.
 
-El sistema está pensado para que un negocio pueda llevar todas sus operaciones, dinero y métricas desde un único lugar, con varios negocios/sucursales conviviendo de forma aislada.
+El sistema está pensado para que un negocio pueda llevar todas sus operaciones, dinero y métricas desde un único lugar.
 
 ---
 
@@ -23,9 +23,8 @@ El sistema está pensado para que un negocio pueda llevar todas sus operaciones,
 ```mermaid
 flowchart TB
     subgraph ADMIN[ADMINISTRACIÓN]
-        EMP[Empresas]
-        SUC[Sucursales]
-        USR[Usuarios + Roles]
+        USR[Usuarios]
+        ROL[Roles + Permisos]
     end
 
     subgraph OP[OPERACIÓN]
@@ -53,10 +52,6 @@ flowchart TB
         DASH[Dashboard]
     end
 
-    ADMIN -.aísla datos.-> OP
-    ADMIN -.aísla datos.-> INV
-    ADMIN -.aísla datos.-> FIN
-
     PRD --> REC --> ING
     PED -- descuenta stock --> ING
     AJU -- ajusta stock --> ING
@@ -70,74 +65,109 @@ flowchart TB
     GAS --> DASH
     ABO --> DASH
     ING --> DASH
+    ROL -. asignado a .-> USR
+    USR -. controla acceso .-> OP
+    USR -. controla acceso .-> INV
+    USR -. controla acceso .-> FIN
 ```
 
-**Lectura del diagrama:** la administración define quién ve qué (aísla datos por empresa). La operación gira alrededor de los pedidos, que tocan inventario (vía recetas) y finanzas (vía crédito). El cierre diario consolida lo que entró (ventas + abonos) y lo que salió (gastos). El dashboard observa todo.
+**Lectura del diagrama:** la operación gira alrededor de los pedidos, que tocan inventario (vía recetas) y finanzas (vía crédito). El cierre diario consolida lo que entró (ventas + abonos) y lo que salió (gastos). El dashboard observa todo. Los roles, asignados a los usuarios, definen quién puede hacer qué.
 
 ---
 
-## 3. Roles y control de acceso
+## 3. Módulo: Roles y Permisos (RBAC)
 
-El sistema reconoce cuatro perfiles, ordenados de mayor a menor alcance:
+**Objetivo:** controlar el acceso al sistema mediante un esquema **RBAC (Role-Based Access Control)** en el que el Administrador puede crear roles personalizados y definir, para cada uno, qué puede hacer en cada módulo.
 
-| Rol | Alcance | Para qué se usa |
-|---|---|---|
-| **SuperAdmin** | Global (todas las empresas) | Crear empresas, gestionar la plataforma, soporte. |
-| **Admin de empresa** | Una empresa completa (todas sus sucursales) | Gestiona usuarios, productos, finanzas, ve todo de su negocio. |
-| **Staff** | Operación de su empresa | Toma pedidos, gestiona inventario, registra gastos, hace cierre de caja. Puede eliminar (queda auditado). |
-| **Repartidor** | Solo lo suyo | Ve únicamente sus entregas, sus ganancias por envío y sus pendientes. |
+### 3.1 Concepto
 
-```mermaid
-flowchart LR
-    SA[SuperAdmin] --> ALL[Toda la plataforma]
-    AE[Admin Empresa] --> EMPRESA[Su empresa + sucursales]
-    ST[Staff] --> OPER[Operación día a día]
-    RP[Repartidor] --> MIO[Solo sus pedidos]
+- Un **rol** es un conjunto de permisos identificado por un **nombre libre** (ej. "Cajero", "Encargado de turno", "Inventarios", "Repartidor", "Contador", lo que el negocio necesite).
+- Cada usuario tiene **un rol** asignado.
+- El rol determina qué módulos ve y qué puede hacer en cada uno.
 
-    ALL --> EMPRESA
-    EMPRESA --> OPER
-    OPER --> MIO
+### 3.2 Permisos por módulo
+
+Para cada módulo del sistema, un rol puede tener cuatro acciones independientes:
+
+| Acción | Significa |
+|---|---|
+| **Ver** | El módulo aparece en el menú; el usuario puede consultar registros. |
+| **Crear** | Puede registrar nuevos elementos en el módulo. |
+| **Editar** | Puede modificar registros existentes. |
+| **Eliminar** | Puede borrar registros (queda auditado cuando aplica). |
+
+Las acciones son independientes entre sí, pero hay una jerarquía implícita: **sin "Ver" no se puede hacer nada más** en el módulo. Un rol puede, por ejemplo, ver y crear pedidos pero no editarlos ni eliminarlos.
+
+### 3.3 Matriz de permisos (ejemplo)
+
+```
+                  | Ver | Crear | Editar | Eliminar
+Pedidos           |  ✔  |   ✔   |   ✔    |    ✘
+Productos         |  ✔  |   ✘   |   ✘    |    ✘
+Ingredientes      |  ✔  |   ✔   |   ✔    |    ✘
+Gastos            |  ✔  |   ✔   |   ✘    |    ✘
+Cuentas por Cobrar|  ✔  |   ✘   |   ✘    |    ✘
+Cierre Diario     |  ✘  |   ✘   |   ✘    |    ✘
+Usuarios          |  ✘  |   ✘   |   ✘    |    ✘
+Auditoría         |  ✘  |   ✘   |   ✘    |    ✘
+Roles             |  ✘  |   ✘   |   ✘    |    ✘
 ```
 
-**Reglas clave:**
-- Los módulos de **Empresas, Usuarios y Auditoría de Pedidos** solo los ven Admin/SuperAdmin.
-- **Staff** accede a operación, inventario y finanzas de su empresa, pero no a la administración del sistema.
-- **Repartidor** solo accede al Dashboard (versión reducida) y a Pedidos (filtrado a los suyos).
-- Cualquier acción de **eliminar** está bloqueada para roles que no sean Admin o Staff, y queda registrada en auditoría cuando aplica.
+Cada negocio configura sus propias matrices según cómo divida responsabilidades.
 
----
+### 3.4 Funcionalidades del módulo
 
-## 4. Multi-empresa (aislamiento de datos)
+- Crear un nuevo rol con nombre y matriz de permisos.
+- Editar el nombre o los permisos de un rol existente.
+- Listar los roles del sistema con un resumen de sus permisos.
+- Eliminar un rol (no se puede eliminar un rol asignado a usuarios activos).
+- Asignar un rol a un usuario (desde el módulo Usuarios).
 
-El sistema permite que varias empresas operen sobre la misma instalación sin verse entre sí.
+### 3.5 Módulos sobre los que aplican los permisos
+
+Pedidos · Productos · Clientes · Repartidores · Ingredientes · Recetas · Ajustes de Inventario · Gastos · Cuentas por Cobrar · Abonos · Cierre Diario · Usuarios · Roles · Auditoría de Pedidos · Dashboard.
+
+### 3.6 Usuario Administrador (caso especial)
+
+Existe un usuario **"Administrador"** con privilegios totales que **no se rige por la matriz de permisos**:
+
+- Tiene acceso completo a **todos los módulos** y todas las acciones (Ver, Crear, Editar, Eliminar).
+- Es el único que puede gestionar el módulo de **Roles**.
+- **No se puede eliminar ni desactivar** desde la interfaz: es el usuario maestro del sistema.
+- Su rol es fijo y existe siempre, garantizando que el sistema nunca quede sin un usuario con acceso completo.
 
 ```mermaid
 flowchart TB
-    PLAT[Plataforma DAVI RAPI]
-    PLAT --> E1[Empresa A]
-    PLAT --> E2[Empresa B]
-    PLAT --> E3[Empresa C]
+    ADM[Usuario Administrador]
+    ADM -- acceso total fijo --> ALL[Todos los módulos / todas las acciones]
 
-    E1 --> S1A[Sucursal Centro]
-    E1 --> S1B[Sucursal Norte]
-    E2 --> S2A[Sucursal Única]
-    E3 --> S3A[Sucursal 1]
-    E3 --> S3B[Sucursal 2]
+    R1[Rol: Cajero]
+    R2[Rol: Inventarios]
+    R3[Rol: Repartidor]
+    R4[Rol personalizado X]
 
-    S1A --> U1[Usuarios + Pedidos + Inventario + Finanzas]
-    S1B --> U2[Usuarios + Pedidos + Inventario + Finanzas]
-    S2A --> U3[Usuarios + Pedidos + Inventario + Finanzas]
+    R1 -- matriz de permisos --> M1[Permisos por módulo]
+    R2 -- matriz de permisos --> M2[Permisos por módulo]
+    R3 -- matriz de permisos --> M3[Permisos por módulo]
+    R4 -- matriz de permisos --> M4[Permisos por módulo]
+
+    U1[Usuarios] -- tiene un rol --> R1
+    U1 -- tiene un rol --> R2
+    U1 -- tiene un rol --> R3
+    U1 -- tiene un rol --> R4
 ```
 
-**Cómo funciona el aislamiento:**
-- Cada registro operativo (pedido, producto, ingrediente, gasto, etc.) pertenece a una empresa y, opcionalmente, a una sucursal.
-- Un usuario normal solo ve los datos de su empresa.
-- El **SuperAdmin** ve todo, lo que le permite dar soporte y administrar el sistema globalmente.
-- Cuando un usuario crea un registro, este se asigna automáticamente a su empresa sin que tenga que elegirla.
+### 3.7 Reglas clave
+
+- Solo el **Administrador** puede crear, editar o eliminar roles.
+- Un rol no puede eliminarse si tiene usuarios asignados.
+- Si un usuario intenta acceder a un módulo o acción para la que no tiene permiso, el sistema lo redirige con un mensaje y no ejecuta la acción.
+- Todas las acciones de eliminación, sin importar el rol, **quedan auditadas** cuando aplican (ej. eliminación de pedidos).
+- El usuario **Administrador** existe siempre y no se ve afectado por cambios en el módulo de Roles.
 
 ---
 
-## 5. Módulo: Autenticación
+## 4. Módulo: Autenticación
 
 **Objetivo:** controlar quién entra al sistema y bloquear intentos maliciosos.
 
@@ -166,7 +196,7 @@ flowchart TD
 
 ---
 
-## 6. Módulo: Productos (Menú)
+## 5. Módulo: Productos (Menú)
 
 **Objetivo:** mantener el catálogo de productos que se venden.
 
@@ -186,7 +216,7 @@ flowchart TD
 
 ---
 
-## 7. Módulo: Clientes
+## 6. Módulo: Clientes
 
 **Objetivo:** mantener un directorio de clientes recurrentes para acelerar la toma de pedidos y soportar el crédito.
 
@@ -204,7 +234,7 @@ flowchart TD
 
 ---
 
-## 8. Módulo: Repartidores
+## 7. Módulo: Repartidores
 
 **Objetivo:** gestionar al personal que entrega los domicilios.
 
@@ -214,7 +244,7 @@ flowchart TD
 **Funcionalidades:**
 - Registrar, editar, eliminar repartidores.
 - Asignar repartidores a pedidos de tipo domicilio.
-- Un repartidor puede estar **vinculado a un usuario del sistema** (rol "repartidor"), lo que le permite iniciar sesión y ver únicamente sus entregas.
+- Un repartidor puede estar **vinculado a un usuario del sistema**, lo que le permite iniciar sesión y ver únicamente sus entregas. El rol que tenga ese usuario define qué más puede hacer.
 
 **Conexión con otros módulos:**
 - Cada pedido a domicilio referencia a un repartidor.
@@ -223,11 +253,11 @@ flowchart TD
 
 ---
 
-## 9. Módulo: Pedidos (Ventas)
+## 8. Módulo: Pedidos (Ventas)
 
 **Objetivo:** registrar y dar seguimiento a todas las ventas del negocio. Es el corazón operativo del sistema.
 
-### 9.1 Atributos del pedido
+### 8.1 Atributos del pedido
 
 - **Cliente**: nombre, teléfono, dirección (opcional).
 - **Tipo**: local (en el punto físico) o domicilio.
@@ -238,7 +268,7 @@ flowchart TD
 - **Estado**: recibido → preparando → en camino → entregado, o cancelado.
 - **Identificador de grupo**: cuando un pedido tiene varios productos, todos comparten un mismo identificador para tratarse como una sola transacción.
 
-### 9.2 Cálculo del total
+### 8.2 Cálculo del total
 
 Para cada línea de producto:
 ```
@@ -246,7 +276,7 @@ total_línea = (precio_producto × cantidad) + costo_envío
 ```
 El costo de envío se aplica una sola vez al pedido completo (en la primera línea del grupo), no por cada producto.
 
-### 9.3 Flujo de creación de un pedido
+### 8.3 Flujo de creación de un pedido
 
 ```mermaid
 flowchart TD
@@ -268,7 +298,7 @@ flowchart TD
     N --> O[Imprimir ticket]
 ```
 
-### 9.4 Ciclo de vida del estado del pedido
+### 8.4 Ciclo de vida del estado del pedido
 
 ```mermaid
 stateDiagram-v2
@@ -284,7 +314,7 @@ stateDiagram-v2
     entregado --> [*]
 ```
 
-### 9.5 Reglas de negocio de pedidos
+### 8.5 Reglas de negocio de pedidos
 
 - Un pedido a **domicilio obliga** a tener repartidor; un pedido **local** no.
 - Si el método de pago es **Crédito**, el total no entra como ingreso real hasta que se abone (ver Cuentas por Cobrar).
@@ -296,15 +326,15 @@ stateDiagram-v2
 - Los pedidos **cancelados** se ocultan del listado por defecto y no cuentan en métricas.
 - Toda edición, cambio de estado o eliminación queda registrada en la **Auditoría de Pedidos**.
 
-### 9.6 Impresión de tickets
+### 8.6 Impresión de tickets
 
 - **Ticket individual**: por una línea de producto.
 - **Ticket grupal**: por todo el pedido multi-producto, con el desglose y el total consolidado.
-- El ticket muestra los datos de la empresa (logo, NIT, dirección, teléfono).
+- El ticket muestra los datos del negocio (logo, NIT, dirección, teléfono).
 
 ---
 
-## 10. Módulo: Auditoría de Pedidos (OrderLogs)
+## 9. Módulo: Auditoría de Pedidos (OrderLogs)
 
 **Objetivo:** dejar huella de **toda modificación** sobre un pedido para tener trazabilidad y resolver disputas.
 
@@ -320,16 +350,16 @@ stateDiagram-v2
 - Detalle textual del cambio (ej. "Estado: de 'preparando' a 'entregado' por jhon").
 - Fecha/hora exacta.
 
-**Acceso:** solo Admin/SuperAdmin pueden consultar la auditoría.
+**Acceso:** solo el Admin puede consultar la auditoría.
 
 ---
 
-## 11. Módulo: Ingredientes (Insumos)
+## 10. Módulo: Ingredientes (Insumos)
 
 **Objetivo:** llevar el control del stock de materias primas que se consumen al producir.
 
 **Atributos del ingrediente:**
-- Nombre (único por empresa), unidad de medida (gr, ml, unidad, etc.), stock actual, costo unitario.
+- Nombre (único), unidad de medida (gr, ml, unidad, etc.), stock actual, costo unitario.
 
 **Funcionalidades:**
 - Crear, editar, eliminar ingredientes.
@@ -344,7 +374,7 @@ stateDiagram-v2
 
 ---
 
-## 12. Módulo: Recetas (ProductIngredients)
+## 11. Módulo: Recetas (ProductIngredients)
 
 **Objetivo:** definir la "fórmula" de cada producto — qué insumos consume y en qué cantidad.
 
@@ -374,7 +404,7 @@ flowchart LR
 
 ---
 
-## 13. Módulo: Ajustes de Inventario
+## 12. Módulo: Ajustes de Inventario
 
 **Objetivo:** corregir el stock por motivos que no son ventas (mermas, devoluciones, compras de insumo, daños, robos).
 
@@ -405,7 +435,7 @@ flowchart LR
 
 ---
 
-## 14. Flujo integrado: Pedido → Inventario → Finanzas
+## 13. Flujo integrado: Pedido → Inventario → Finanzas
 
 Este es el flujo más importante del sistema porque conecta los tres núcleos.
 
@@ -433,7 +463,7 @@ sequenceDiagram
 
 ---
 
-## 15. Módulo: Gastos
+## 14. Módulo: Gastos
 
 **Objetivo:** registrar todas las salidas de dinero del negocio para que el cierre diario y el dashboard reflejen la realidad.
 
@@ -455,7 +485,7 @@ sequenceDiagram
 
 ---
 
-## 16. Módulo: Cuentas por Cobrar (Crédito / Fiado)
+## 15. Módulo: Cuentas por Cobrar (Crédito / Fiado)
 
 **Objetivo:** gestionar las ventas a crédito ("fiados") y su recuperación mediante abonos parciales.
 
@@ -494,7 +524,7 @@ flowchart TD
 
 ---
 
-## 17. Módulo: Abonos a Cuentas (AccountPayments)
+## 16. Módulo: Abonos a Cuentas (AccountPayments)
 
 **Objetivo:** registrar pagos parciales sobre una cuenta por cobrar.
 
@@ -515,7 +545,7 @@ flowchart TD
 
 ---
 
-## 18. Módulo: Cierre Diario de Caja
+## 17. Módulo: Cierre Diario de Caja
 
 **Objetivo:** al final del día, cuadrar lo que el sistema esperaba en caja contra lo que realmente hay (conteo físico).
 
@@ -556,63 +586,50 @@ flowchart TD
 
 ---
 
-## 19. Módulo: Empresas y Sucursales
+## 18. Módulo: Usuarios
 
-**Objetivo:** organizar la plataforma cuando hay múltiples negocios o múltiples puntos físicos de un mismo negocio.
-
-### Empresa
-- Datos básicos: nombre, NIT, dirección, teléfono, correo, logo.
-- Marca de "tiene sucursales" (sí/no).
-- Aparece en los tickets impresos como datos del local.
-
-### Sucursal
-- Pertenece a una empresa.
-- Tiene su propia dirección/teléfono.
-- Permite que una empresa con varios puntos pueda separar pedidos, inventarios y cierres por punto físico.
-
-**Quién las gestiona:**
-- **Empresas**: solo SuperAdmin.
-- **Sucursales**: el Admin de la empresa puede crear las suyas.
-
-**Filtro en el dashboard:** un Admin puede filtrar las métricas por sucursal específica.
-
----
-
-## 20. Módulo: Usuarios
-
-**Objetivo:** gestionar quién entra al sistema y con qué permisos.
+**Objetivo:** gestionar quién entra al sistema y con qué rol.
 
 **Atributos:**
-- Usuario, contraseña, rol.
-- Empresa y sucursal a la que pertenece (no aplica a SuperAdmin).
-- Si el rol es "repartidor", se vincula al **registro de repartidor** correspondiente.
+- Usuario, contraseña.
+- **Rol asignado** (uno solo, tomado del módulo de Roles).
+- Vínculo opcional con un **registro de repartidor**: cuando un usuario representa a un repartidor físico, se enlaza para que el sistema pueda mostrarle solo sus entregas y calcular sus ganancias.
 - Contadores de seguridad: intentos fallidos, hora de bloqueo.
 
+**Funcionalidades:**
+- Crear, editar, eliminar usuarios.
+- Asignar/cambiar el rol del usuario.
+- Vincular o desvincular el usuario a un repartidor.
+- Reiniciar el bloqueo de cuenta.
+
 **Reglas:**
-- Si el rol es **admin global** (SuperAdmin), no se le asigna empresa — ve todo.
-- Si el rol es cualquier otro, **debe** seleccionar empresa.
-- Solo Admin/SuperAdmin pueden crear, editar o eliminar usuarios.
-- El usuario "admin" siempre se trata como SuperAdmin por compatibilidad.
+- Solo el **Administrador** o un rol con permisos sobre el módulo Usuarios puede crearlos o editarlos.
+- El **usuario Administrador** no puede eliminarse desde la interfaz.
+- Un usuario sin rol asignado no puede iniciar sesión.
+- Si un usuario está vinculado a un repartidor, el sistema le filtra automáticamente los pedidos a los suyos, independientemente de los permisos de su rol.
 
 ---
 
-## 21. Módulo: Dashboard
+## 19. Módulo: Dashboard
 
 **Objetivo:** ofrecer una vista única y filtrable del estado del negocio.
 
-### 21.1 Dashboard del Repartidor (vista reducida)
+### 19.1 Vista para usuarios vinculados a un repartidor
 
-Solo muestra:
+Cuando un usuario está **vinculado a un repartidor**, su dashboard se reduce automáticamente a sus propios datos:
+
 - **Entregas en el período**: número de pedidos que ha entregado.
 - **Ganancia del período**: suma de los costos de envío de sus pedidos entregados.
 - **Pendientes hoy**: pedidos asignados que aún no se entregan ni cancelan.
 - Botón directo a "Mis entregas".
 
-### 21.2 Dashboard del Admin / Staff (vista completa)
+Esta vista es independiente del rol RBAC: no importa qué permisos tenga, si está enlazado a un repartidor el dashboard es personal.
+
+### 19.2 Vista general (usuarios no repartidores)
 
 ```mermaid
 flowchart TB
-    DASH[Dashboard Admin]
+    DASH[Dashboard general]
 
     DASH --> M1[Métricas financieras]
     DASH --> M2[Análisis comercial]
@@ -634,10 +651,9 @@ flowchart TB
     M3 --> M3a[Insumos con stock bajo]
 
     M4 --> M4a[Rango de fechas]
-    M4 --> M4b[Sucursal específica]
 ```
 
-### 21.3 Cálculos clave del dashboard
+### 19.3 Cálculos clave del dashboard
 
 | Métrica | Cómo se calcula |
 |---|---|
@@ -648,32 +664,23 @@ flowchart TB
 | **Utilidad neta** | Ingresos − Envíos − Costo de insumos − Gastos. |
 | Pedidos contados | Se cuenta cada pedido multi-producto como **una sola transacción**, no por cada línea. |
 
-### 21.4 Filtros
+### 19.4 Filtros
 
 - **Rango de fechas**: todas las métricas se recalculan según el rango (por defecto, todo el histórico).
-- **Sucursal**: para empresas con varias sucursales, se puede aislar la vista.
 
-### 21.5 Reglas
+### 19.5 Reglas
 
 - Los pedidos **cancelados** se excluyen de **todas** las métricas.
 - El crédito (fiado) **no cuenta como ingreso** hasta que se abone — el dashboard refleja flujo de caja real, no facturación bruta.
 
 ---
 
-## 22. Mapa completo de relaciones entre módulos
+## 20. Mapa completo de relaciones entre módulos
 
 ```mermaid
 erDiagram
-    EMPRESA ||--o{ SUCURSAL : tiene
-    EMPRESA ||--o{ USUARIO : agrupa
-    EMPRESA ||--o{ PRODUCTO : tiene
-    EMPRESA ||--o{ INGREDIENTE : tiene
-    EMPRESA ||--o{ CLIENTE : registra
-    EMPRESA ||--o{ REPARTIDOR : emplea
-    EMPRESA ||--o{ PEDIDO : recibe
-    EMPRESA ||--o{ GASTO : registra
-    EMPRESA ||--o{ CIERRE : cierra
-
+    ROL ||--o{ PERMISO : define
+    PERMISO }o--|| MODULO : aplica_a
     USUARIO }o--|| ROL : tiene
     USUARIO }o--o| REPARTIDOR : puede_ser
 
@@ -697,7 +704,7 @@ erDiagram
 
 ---
 
-## 23. Reglas globales de negocio
+## 21. Reglas globales de negocio
 
 ### Sobre dinero
 1. El crédito (fiado) **no es ingreso** hasta que se abona.
@@ -721,14 +728,15 @@ erDiagram
 5. Pedidos multi-producto se manejan como una sola transacción a efectos de estado, ticket y conteo.
 
 ### Sobre acceso
-1. Cada usuario solo ve datos de su empresa, salvo SuperAdmin.
-2. Eliminar registros está restringido a Admin y Staff.
-3. La administración de empresas, usuarios y auditoría es exclusiva de Admin.
-4. El repartidor solo ve sus pedidos y sus métricas.
+1. El control de acceso es **RBAC**: roles personalizados con matriz de permisos (Ver / Crear / Editar / Eliminar) por módulo.
+2. Solo el usuario **Administrador** tiene acceso total fijo y no se rige por la matriz.
+3. Solo el Administrador puede gestionar el módulo de Roles.
+4. Un usuario vinculado a un repartidor solo ve sus propios pedidos y sus propias métricas, independientemente de los permisos del rol.
+5. Toda eliminación queda registrada en auditoría cuando aplica al pedido.
 
 ---
 
-## 24. Glosario rápido
+## 22. Glosario rápido
 
 | Término | Significado en el sistema |
 |---|---|
@@ -743,13 +751,15 @@ erDiagram
 | **Ajuste de inventario** | Movimiento manual de stock (entrada o baja) con motivo. |
 | **Stock bajo** | Insumo con 5 unidades o menos. |
 | **Ranking de repartidores** | Repartidores ordenados por número de entregas y monto generado. |
-| **Empresa** | Negocio independiente dentro de la plataforma. |
-| **Sucursal** | Punto físico de una empresa. |
 | **Auditoría** | Bitácora inmutable de cambios sobre pedidos. |
+| **Rol** | Conjunto de permisos identificado por nombre, asignado a usuarios. |
+| **Permiso** | Habilitación de una acción (Ver/Crear/Editar/Eliminar) sobre un módulo, dentro de un rol. |
+| **RBAC** | Role-Based Access Control: control de acceso basado en roles. |
+| **Administrador** | Usuario maestro con acceso total fijo, no sujeto a la matriz de permisos. |
 
 ---
 
-## 25. Resumen ejecutivo en una página
+## 23. Resumen ejecutivo en una página
 
 DAVI RAPI es la plataforma diaria de un negocio de comida rápida. Un cajero registra un **pedido** indicando productos, cliente y método de pago; el sistema **descuenta los insumos** automáticamente según la **receta** de cada producto. Si el pago es a **crédito**, se crea una **cuenta por cobrar** que el cliente irá pagando con **abonos**; mientras tanto no cuenta como ingreso real. Si el pedido es a **domicilio**, se asigna un **repartidor** con un **costo de envío** que él gana al entregar.
 
@@ -757,4 +767,4 @@ Al final del día, el encargado hace el **cierre diario**: el sistema calcula lo
 
 El **dashboard** muestra en tiempo real ingresos, gastos, utilidad real, ranking de repartidores, productos más vendidos y alertas de stock. Toda **modificación de pedido queda auditada**.
 
-La plataforma soporta **múltiples empresas y sucursales** aisladas entre sí, con cuatro roles (SuperAdmin, Admin, Staff, Repartidor) que ven sólo lo que les corresponde.
+El control de acceso es **RBAC**: el Administrador crea roles con cualquier nombre y define, para cada módulo, qué acciones pueden hacer (Ver / Crear / Editar / Eliminar). Existe un usuario **Administrador** fijo con acceso total que no se rige por la matriz de permisos.
